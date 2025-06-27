@@ -1,36 +1,33 @@
 ---
-# 功能说明：在集群中创建资源，支持pods, configmaps
+# 功能说明：在集群中删除资源，支持pods, configmaps
 # 参数说明:
-#   resource-archestrate模版参数说明:
-#     1. image: 创建资源使用的工具镜像
-#     2. namespace: 创建资源所在的命名空间
-#     3. object-type: 创建资源的类型, 支持pods/configmaps
-#     4. object-size-bytes: 创建资源的大小, 单位字节
-#     5. object-count: 创建资源的数量
-#     6. num-clients: 创建资源的客户端数量
-#     7. qps: 创建资源的QPS
+#   resource-delete模版参数说明:
+#     1. image: 删除资源使用的工具镜像
+#     2. namespace: 删除资源所在的命名空间
+#     3. object-type: 删除资源的类型, 支持pods/configmaps
+#     4. object-count: 删除资源的数量
+#     5. num-clients: 删除资源的客户端数量
+#     6. qps: 删除资源的QPS
+#     7. delete-all: 是否删除所有资源
 #     8. kubeconfig-secret-name: 用于指定接入的K8s集群的kubeconfig凭证的secret名称, 如果为空，则默认为当前集群
 apiVersion: argoproj.io/v1alpha1
 kind: ClusterWorkflowTemplate
 metadata:
-  name: resource-archestrate
+  name: resource-delete
 spec:
-  entrypoint: resource-create
+  entrypoint: resource-delete
   templates:
-  - name: resource-create
+  - name: resource-delete
     inputs:
       parameters:
       - name: image
         default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
-        description: "创建资源使用的工具镜像"
+        description: "删除资源使用的工具镜像"
       - name: namespace
-        description: "创建资源所在的命名空间"
+        description: "删除资源所在的命名空间"
       - name: object-type
         default: "pods"
-        description: "创建资源的类型, 支持pods/configmaps"
-      - name: object-size-bytes
-        default: "10000"
-        description: "创建资源的大小, 单位字节"
+        description: "删除资源的类型, 支持pods/configmaps"
       - name: object-count
         default: "100"
         description: "创建资源的数量"
@@ -43,7 +40,7 @@ spec:
       - name: kubeconfig-secret-name
         description: "用于指定接入的K8s集群的kubeconfig凭证的secret名称, 如果为空，则默认为当前集群"
     steps:
-    - - name: internal-resource-create
+    - - name: internal-resource-delete
         arguments:
           parameters:
           - name: image
@@ -52,17 +49,15 @@ spec:
             value: "{{inputs.parameters.namespace}}"
           - name: object-type
             value: "{{inputs.parameters.object-type}}"
-          - name: object-size-bytes
-            value: "{{inputs.parameters.object-size-bytes}}"
           - name: object-count
             value: "{{inputs.parameters.object-count}}"
           - name: num-clients
             value: "{{inputs.parameters.num-clients}}"
           - name: qps
             value: "{{inputs.parameters.qps}}"
-        template: internal-resource-create
+        template: internal-resource-delete
         when: "'{{inputs.parameters.kubeconfig-secret-name}}' == ''"
-    - - name: external-resource-create
+    - - name: external-resource-delete
         arguments:
           parameters:
           - name: image
@@ -71,8 +66,6 @@ spec:
             value: "{{inputs.parameters.namespace}}"
           - name: object-type
             value: "{{inputs.parameters.object-type}}"
-          - name: object-size-bytes
-            value: "{{inputs.parameters.object-size-bytes}}"
           - name: object-count
             value: "{{inputs.parameters.object-count}}"
           - name: num-clients
@@ -81,16 +74,15 @@ spec:
             value: "{{inputs.parameters.qps}}"
           - name: kubeconfig-secret-name
             value: "{{inputs.parameters.kubeconfig-secret-name}}"
-        template: external-resource-create
+        template: external-resource-delete
         when: "'{{inputs.parameters.kubeconfig-secret-name}}' != ''"
 
-  - name: internal-resource-create
+  - name: internal-resource-delete
     inputs:
       parameters:
       - name: image
       - name: namespace
       - name: object-type
-      - name: object-size-bytes
       - name: object-count
       - name: num-clients
       - name: qps
@@ -98,21 +90,19 @@ spec:
       image: "{{inputs.parameters.image}}"
       command:
       - /kubestress
-      - create
+      - delete
       - --namespace={{inputs.parameters.namespace}}
       - --object-type={{inputs.parameters.object-type}}
-      - --object-size-bytes={{inputs.parameters.object-size-bytes}}
       - --object-count={{inputs.parameters.object-count}}
       - --num-clients={{inputs.parameters.num-clients}}
       - --qps={{inputs.parameters.qps}}
 
-  - name: external-resource-create
+  - name: external-resource-delete
     inputs:
       parameters:
       - name: image
       - name: namespace
       - name: object-type
-      - name: object-size-bytes
       - name: object-count
       - name: num-clients
       - name: qps
@@ -121,11 +111,10 @@ spec:
       image: "{{inputs.parameters.image}}"
       command:
       - /kubestress
-      - create
+      - delete
       - --kubeconfig=/.kube/config
       - --namespace={{inputs.parameters.namespace}}
       - --object-type={{inputs.parameters.object-type}}
-      - --object-size-bytes={{inputs.parameters.object-size-bytes}}
       - --object-count={{inputs.parameters.object-count}}
       - --num-clients={{inputs.parameters.num-clients}}
       - --qps={{inputs.parameters.qps}}

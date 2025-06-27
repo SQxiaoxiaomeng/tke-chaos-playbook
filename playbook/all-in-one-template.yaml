@@ -13,7 +13,7 @@ spec:
     parameters:
     # cluster-status-collect 参数
     - name: image
-      value: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+      value: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
   entrypoint: cluster-status-collect
   templates:
   - name: cluster-status-collect
@@ -373,7 +373,7 @@ spec:
     inputs:
       parameters:
       - name: image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
       - name: args
     container:
       image: "{{inputs.parameters.image}}"
@@ -565,7 +565,7 @@ spec:
     inputs:
       parameters:
       - name: image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
         description: "precheck工具镜像, 用于校验集群健康状态"
       - name: check-configmap-name
         default: "tke-chaos-precheck-resource"
@@ -762,7 +762,7 @@ spec:
 
       # precheck参数
       - name: precheck-cluster-image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
         description: "前置检查工具镜像"
       - name: check-configmap-name
         default: "tke-chaos-precheck-resource"
@@ -779,7 +779,7 @@ spec:
 
       # 资源创建参数
       - name: resource-create-image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
         description: "资源创建工具镜像"
       - name: resource-create-namespace
         default: "tke-chaos-test"
@@ -799,12 +799,12 @@ spec:
 
       # 集群状态采集参数
       - name: cluster-status-image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
         description: "集群状态检查工具镜像"
 
       # 压测参数
       - name: inject-stress-image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
         description: "故障注入工具镜像"
       - name: inject-stress-list-namespace
         default: ""
@@ -1234,7 +1234,7 @@ spec:
     inputs:
       parameters:
       - name: image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
         description: "压测工具镜像"
       - name: namespace
         default: ""
@@ -1392,8 +1392,6 @@ spec:
   - name: main
     inputs:
       parameters:
-      - name: disruption-duration
-        description: "服务中断持续时间"
       - name: workload-type
         description: "要测试的工作负载类型, 可选值: daemonset/deployment/statefulset"
       - name: workload-name
@@ -1409,6 +1407,8 @@ spec:
         default: "tke-chaos-test"
         description: "预检查配置configmap所在命名空间"
     steps:
+    - - name: suspend-1
+        template: suspend
     - - name: precheck
         arguments:
           parameters:
@@ -1437,7 +1437,7 @@ spec:
           - name: kubeconfig-secret-name
             value: "{{inputs.parameters.kubeconfig-secret-name}}"
         template: scale-down-workload
-    - - name: suspend
+    - - name: suspend-2
         template: suspend
     - - name: scale-up-workload
         arguments:
@@ -1549,7 +1549,7 @@ spec:
     inputs:
       parameters:
       - name: image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
         description: "创建资源使用的工具镜像"
       - name: namespace
         description: "创建资源所在的命名空间"
@@ -1654,6 +1654,138 @@ spec:
       - --namespace={{inputs.parameters.namespace}}
       - --object-type={{inputs.parameters.object-type}}
       - --object-size-bytes={{inputs.parameters.object-size-bytes}}
+      - --object-count={{inputs.parameters.object-count}}
+      - --num-clients={{inputs.parameters.num-clients}}
+      - --qps={{inputs.parameters.qps}}
+      volumeMounts:
+      - name: kubeconfig
+        mountPath: "/.kube"
+        readOnly: true
+    volumes:
+    - name: kubeconfig
+      secret:
+        secretName: "{{inputs.parameters.kubeconfig-secret-name}}"
+        items:
+        - key: config
+          path: config
+
+---
+# 功能说明：在集群中删除资源，支持pods, configmaps
+# 参数说明:
+#   resource-delete模版参数说明:
+#     1. image: 删除资源使用的工具镜像
+#     2. namespace: 删除资源所在的命名空间
+#     3. object-type: 删除资源的类型, 支持pods/configmaps
+#     4. object-count: 删除资源的数量
+#     5. num-clients: 删除资源的客户端数量
+#     6. qps: 删除资源的QPS
+#     7. delete-all: 是否删除所有资源
+#     8. kubeconfig-secret-name: 用于指定接入的K8s集群的kubeconfig凭证的secret名称, 如果为空，则默认为当前集群
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterWorkflowTemplate
+metadata:
+  name: resource-delete
+spec:
+  entrypoint: resource-delete
+  templates:
+  - name: resource-delete
+    inputs:
+      parameters:
+      - name: image
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
+        description: "删除资源使用的工具镜像"
+      - name: namespace
+        description: "删除资源所在的命名空间"
+      - name: object-type
+        default: "pods"
+        description: "删除资源的类型, 支持pods/configmaps"
+      - name: object-count
+        default: "100"
+        description: "创建资源的数量"
+      - name: num-clients
+        default: "10"
+        description: "创建资源的客户端数量"
+      - name: qps
+        default: "10"
+        description: "创建资源的QPS"
+      - name: kubeconfig-secret-name
+        description: "用于指定接入的K8s集群的kubeconfig凭证的secret名称, 如果为空，则默认为当前集群"
+    steps:
+    - - name: internal-resource-delete
+        arguments:
+          parameters:
+          - name: image
+            value: "{{inputs.parameters.image}}"
+          - name: namespace
+            value: "{{inputs.parameters.namespace}}"
+          - name: object-type
+            value: "{{inputs.parameters.object-type}}"
+          - name: object-count
+            value: "{{inputs.parameters.object-count}}"
+          - name: num-clients
+            value: "{{inputs.parameters.num-clients}}"
+          - name: qps
+            value: "{{inputs.parameters.qps}}"
+        template: internal-resource-delete
+        when: "'{{inputs.parameters.kubeconfig-secret-name}}' == ''"
+    - - name: external-resource-delete
+        arguments:
+          parameters:
+          - name: image
+            value: "{{inputs.parameters.image}}"
+          - name: namespace
+            value: "{{inputs.parameters.namespace}}"
+          - name: object-type
+            value: "{{inputs.parameters.object-type}}"
+          - name: object-count
+            value: "{{inputs.parameters.object-count}}"
+          - name: num-clients
+            value: "{{inputs.parameters.num-clients}}"
+          - name: qps
+            value: "{{inputs.parameters.qps}}"
+          - name: kubeconfig-secret-name
+            value: "{{inputs.parameters.kubeconfig-secret-name}}"
+        template: external-resource-delete
+        when: "'{{inputs.parameters.kubeconfig-secret-name}}' != ''"
+
+  - name: internal-resource-delete
+    inputs:
+      parameters:
+      - name: image
+      - name: namespace
+      - name: object-type
+      - name: object-count
+      - name: num-clients
+      - name: qps
+    container:
+      image: "{{inputs.parameters.image}}"
+      command:
+      - /kubestress
+      - delete
+      - --namespace={{inputs.parameters.namespace}}
+      - --object-type={{inputs.parameters.object-type}}
+      - --object-count={{inputs.parameters.object-count}}
+      - --num-clients={{inputs.parameters.num-clients}}
+      - --qps={{inputs.parameters.qps}}
+
+  - name: external-resource-delete
+    inputs:
+      parameters:
+      - name: image
+      - name: namespace
+      - name: object-type
+      - name: object-count
+      - name: num-clients
+      - name: qps
+      - name: kubeconfig-secret-name
+    container:
+      image: "{{inputs.parameters.image}}"
+      command:
+      - /kubestress
+      - delete
+      - --kubeconfig=/.kube/config
+      - --namespace={{inputs.parameters.namespace}}
+      - --object-type={{inputs.parameters.object-type}}
       - --object-count={{inputs.parameters.object-count}}
       - --num-clients={{inputs.parameters.num-clients}}
       - --qps={{inputs.parameters.qps}}

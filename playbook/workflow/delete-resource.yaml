@@ -2,29 +2,27 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
-  name: create-resource
+  name: delete-resource
   namespace: tke-chaos-test
 spec:
-  entrypoint: resource-create
+  entrypoint: resource-delete
   arguments:
     parameters:
     - name: image
-      value: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
+      value: "ccr.ccs.tencentyun.com/northjhuang/tke-chaos:v0.0.5"
     - name: namespace
       value: "tke-chaos-test"
     - name: object-type
       value: "pods"
-    - name: object-size-bytes
-      value: "10000"
     - name: object-count
-      value: "0"
+      value: "50000"
     - name: num-clients
       value: "10"
     - name: qps
-      value: "10"
+      value: "250"
     - name: kubeconfig-secret-name
       value: "dest-cluster-kubeconfig"
   serviceAccountName: tke-chaos
   workflowTemplateRef:
-    name: resource-archestrate
+    name: resource-delete
     clusterScope: true

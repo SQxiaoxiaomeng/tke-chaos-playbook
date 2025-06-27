@@ -31,7 +31,7 @@ spec:
     inputs:
       parameters:
       - name: image
-        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2"
+        default: "ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5"
       - name: args
     container:
       image: "{{inputs.parameters.image}}"

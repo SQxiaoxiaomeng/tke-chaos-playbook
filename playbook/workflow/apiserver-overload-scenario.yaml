@@ -20,7 +20,7 @@ spec:
     parameters:
     # 全局参数
     - name: chaos-image
-      value: ccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.2
+      value: shadcccr.ccs.tencentyun.com/tkeimages/tke-chaos:v0.0.5
     - name: cluster-id  # 演练集群ID
       value: "未知"
     - name: webhook-url  # 企业微信群webhook地址
@@ -71,6 +71,10 @@ spec:
       value: "{{workflow.parameters.resource-create-object-type}}"
     - name: from-cache  # 构造apiserver高负载时, 置为true, 构造etcd高负载时, 置为false
       value: "true"
+    - name: inject-stress-page-size
+      value: "0"
+    - name: inject-stress-namespace
+      value: ""
     - name: inject-stress-user-agent  # 发压端UserAgent, 如: "kubestress/1.0.0"
       value: "kubestress/v0.0.1"
     - name: inject-stress-concurrency  # 发压端并发数
@@ -153,6 +157,10 @@ spec:
   templates:
   - name: main
     steps:
+    - - name: validate-params
+        template: validate-params
+    - - name: suspend
+        template: suspend
     - - name: create-apf  # 演练开始前, 创建apf限速
         arguments:
           parameters:
@@ -228,6 +236,10 @@ spec:
             value: "{{workflow.parameters.inject-stress-object-type}}"
           - name: from-cache  # 构造apiserver高负载时, 置为true, 构造etcd高负载时, 置为false
             value: "{{workflow.parameters.from-cache}}"
+          - name: inject-stress-list-page-size
+            value: "{{workflow.parameters.inject-stress-page-size}}"
+          - name: inject-stress-list-namespace
+            value: "{{workflow.parameters.inject-stress-namespace}}"
           - name: inject-stress-user-agent  # 发压端UserAgent, 如: "kubestress/1.0.0"
             value: "{{workflow.parameters.inject-stress-user-agent}}"
           - name: inject-stress-concurrency  # 发压端并发数
@@ -272,3 +284,25 @@ spec:
           template: etcd-protect-cm-orchestrate
           clusterScope: true
         when: "'{{workflow.parameters.enable-etcd-overload-protect}}' == 'true'"
+
+  - name: suspend
+    suspend: {}
+
+  - name: validate-params
+    script:
+      image: bitnami/kubectl:1.32.4
+      command: [bash]
+      source: |
+        #!/bin/bash
+        set -e
+        if [[ -z "{{workflow.parameters.kubeconfig-secret-name}}" ]]; then
+          echo "[ERROR] kubeconfig-secret-name parameter cannot be empty" > /tmp/validate_result
+          exit 1
+        fi
+        echo "Parameter validation passed"
+    outputs:
+      parameters:
+      - name: result
+        valueFrom:
+          default: "null"
+          path: /tmp/validate_result
